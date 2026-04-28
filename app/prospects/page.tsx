@@ -175,7 +175,10 @@ function formatDate(value?: string | null) {
 function isClosedCompany(company: Company) {
   const lastResult = company.lastContactResult ?? null;
   const commercialStage = company.commercialStage ?? "PROSPECT";
-  const status = company.prospect?.status ?? "NEW";
+  const status =
+    company.commercialStage === "CLIENT"
+      ? "CLIENT"
+      : (company.prospect?.status ?? "NEW");
 
   const isClosedByResult = lastResult
     ? CLOSED_RESULTS.includes(lastResult)
@@ -241,6 +244,116 @@ function getFollowUpBadge(company: Company) {
   return null;
 }
 
+function getPipelineStatus(company: Company) {
+  const status =
+    company.commercialStage === "CLIENT"
+      ? "CLIENT"
+      : (company.prospect?.status ?? "NEW");
+
+  const lastResult = company.lastContactResult ?? null;
+
+  if (company.commercialStage === "CLIENT") {
+    return {
+      label: "Déjà client",
+      className: "border border-emerald-300 bg-emerald-100 text-emerald-800",
+    };
+  }
+
+  if (
+    company.commercialStage === "INACTIVE" ||
+    status === "LOST" ||
+    status === "ARCHIVED" ||
+    (lastResult && CLOSED_RESULTS.includes(lastResult))
+  ) {
+    return {
+      label: "Perdu / hors cible",
+      className: "border border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (
+    company.commercialStage === "TARGET" ||
+    status === "CONTACTED" ||
+    status === "FOLLOW_UP" ||
+    status === "WON"
+  ) {
+    return {
+      label: "En discussion",
+      className: "border border-blue-200 bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    label: "Prospect",
+    className: "border border-slate-200 bg-slate-100 text-slate-700",
+  };
+}
+
+type PipelineGroup = "prospect" | "discussion" | "client" | "lost";
+
+function getPipelineGroup(company: Company): PipelineGroup {
+  const status =
+    company.commercialStage === "CLIENT"
+      ? "CLIENT"
+      : (company.prospect?.status ?? "NEW");
+
+  const lastResult = company.lastContactResult ?? null;
+
+  if (company.commercialStage === "CLIENT") return "client";
+
+  if (
+    company.commercialStage === "INACTIVE" ||
+    status === "LOST" ||
+    status === "ARCHIVED" ||
+    (lastResult && CLOSED_RESULTS.includes(lastResult))
+  ) {
+    return "lost";
+  }
+
+  if (
+    company.commercialStage === "TARGET" ||
+    status === "CONTACTED" ||
+    status === "FOLLOW_UP" ||
+    status === "WON"
+  ) {
+    return "discussion";
+  }
+
+  return "prospect";
+}
+
+const PIPELINE_COLUMNS: {
+  key: PipelineGroup;
+  label: string;
+  description: string;
+  className: string;
+}[] = [
+  {
+    key: "prospect",
+    label: "Prospect",
+    description: "À qualifier",
+    className: "border-slate-200 bg-slate-50",
+  },
+  {
+    key: "discussion",
+    label: "En discussion",
+    description: "Contact, relance, RDV",
+    className: "border-blue-200 bg-blue-50/70",
+  },
+  {
+    key: "client",
+    label: "Déjà client",
+    description: "À sortir de la prospection",
+    className: "border-emerald-200 bg-emerald-50/70",
+  },
+  {
+    key: "lost",
+    label: "Perdu / hors cible",
+    description: "Pas intéressé ou inactif",
+    className: "border-red-200 bg-red-50/70",
+  },
+];
+
 const INITIAL_ACTIVITY_FORM: ActivityFormState = {
   type: "CALL",
   result: "TO_CALL_BACK",
@@ -291,6 +404,7 @@ export default function ProspectsPage() {
     "all" | "today" | "overdue" | "active" | "closed"
   >("all");
   const [quickActionId, setQuickActionId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
 
   async function loadCompanies() {
     try {
@@ -944,7 +1058,10 @@ export default function ProspectsPage() {
   const filteredCompanies = companies.filter((company) => {
     const search = filter.toLowerCase();
     const score = company.prospect?.score ?? 0;
-    const status = company.prospect?.status ?? "NEW";
+    const status =
+      company.commercialStage === "CLIENT"
+        ? "CLIENT"
+        : (company.prospect?.status ?? "NEW");
     const postalCode = company.postalCode ?? "";
     const department = postalCode ? postalCode.slice(0, 2) : "";
     const lastResult = company.lastContactResult ?? null;
@@ -1002,6 +1119,13 @@ export default function ProspectsPage() {
       matchesQuickFilter
     );
   });
+
+  const kanbanGroups = PIPELINE_COLUMNS.map((column) => ({
+    ...column,
+    companies: filteredCompanies.filter(
+      (company) => getPipelineGroup(company) === column.key,
+    ),
+  }));
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.05),_transparent_20%),linear-gradient(to_bottom,_#f8fafc,_#f1f5f9)] px-4 py-6 sm:px-6 lg:px-8">
@@ -1361,6 +1485,33 @@ export default function ProspectsPage() {
                       Réinitialiser la vue rapide
                     </button>
                   )}
+
+                  {/* 🔥 AJOUT ICI */}
+                  <div className="flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("table")}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        viewMode === "table"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      Tableau
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("kanban")}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        viewMode === "kanban"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      Pipeline
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid w-full gap-3 md:grid-cols-2 xl:max-w-5xl xl:grid-cols-5">
@@ -1395,6 +1546,7 @@ export default function ProspectsPage() {
                     <option value="CONTACTED">Contacté</option>
                     <option value="FOLLOW_UP">Relance</option>
                     <option value="WON">Gagné</option>
+                    <option value="CLIENT">Déjà client</option>
                     <option value="LOST">Perdu</option>
                     <option value="ARCHIVED">Archivé</option>
                   </select>
@@ -1420,196 +1572,203 @@ export default function ProspectsPage() {
                 </div>
               </div>
             </div>
+            {viewMode === "table" ? (
+              <div className="overflow-hidden rounded-[30px] border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
+                {loading ? (
+                  <div className="px-6 py-10 text-sm text-slate-500">
+                    Chargement...
+                  </div>
+                ) : filteredCompanies.length === 0 ? (
+                  <div className="px-6 py-10 text-sm text-slate-500">
+                    Aucun prospect trouvé.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-slate-50/90 text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Entreprise
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Ville
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            NAF
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Contact
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Score
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Suivi commercial
+                          </th>
+                          <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Statut
+                          </th>
+                          <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.14em]">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
-            <div className="overflow-hidden rounded-[30px] border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
-              {loading ? (
-                <div className="px-6 py-10 text-sm text-slate-500">
-                  Chargement...
-                </div>
-              ) : filteredCompanies.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-slate-500">
-                  Aucun prospect trouvé.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-slate-50/90 text-slate-500">
-                      <tr>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Entreprise
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Ville
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          NAF
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Contact
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Score
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Suivi commercial
-                        </th>
-                        <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Statut
-                        </th>
-                        <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+                      <tbody>
+                        {filteredCompanies.map((company) => {
+                          const score = company.prospect?.score ?? 0;
+                          const candidates =
+                            websiteCandidatesByCompanyId[company.id] ?? [];
+                          const isExpanded = expandedCompanyId === company.id;
+                          const followUpBadge = getFollowUpBadge(company);
+                          const rowHighlightClass =
+                            getRowHighlightClass(company);
+                          const pipelineStatus = getPipelineStatus(company);
 
-                    <tbody>
-                      {filteredCompanies.map((company) => {
-                        const score = company.prospect?.score ?? 0;
-                        const candidates =
-                          websiteCandidatesByCompanyId[company.id] ?? [];
-                        const isExpanded = expandedCompanyId === company.id;
-                        const followUpBadge = getFollowUpBadge(company);
-                        const rowHighlightClass = getRowHighlightClass(company);
+                          return (
+                            <Fragment key={company.id}>
+                              <tr
+                                className={`group border-t border-slate-100 align-top transition-all hover:bg-slate-50/80 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.08)] ${rowHighlightClass}`}
+                              >
+                                <td className="px-5 py-3.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpanded(company.id)}
+                                    className="w-full text-left"
+                                  >
+                                    <div className="font-semibold leading-7 text-slate-950 transition group-hover:text-blue-600">
+                                      {company.name}
+                                    </div>
 
-                        return (
-                          <Fragment key={company.id}>
-                            <tr
-                              className={`group border-t border-slate-100 align-top transition-all hover:bg-slate-50/80 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.08)] ${rowHighlightClass}`}
-                            >
-                              <td className="px-5 py-3.5">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpanded(company.id)}
-                                  className="w-full text-left"
-                                >
-                                  <div className="font-semibold leading-7 text-slate-950 group-hover:text-blue-600 transition">
-                                    {company.name}
-                                  </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                                    <span>
-                                      {isExpanded
-                                        ? "Masquer les détails"
-                                        : "Voir les détails"}
-                                    </span>
-
-                                    {company.website && (
-                                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                                        Site OK
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                                      <span>
+                                        {isExpanded
+                                          ? "Masquer les détails"
+                                          : "Voir les détails"}
                                       </span>
-                                    )}
 
-                                    {company.email && (
-                                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                                        Email OK
-                                      </span>
-                                    )}
+                                      {company.website && (
+                                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                          Site OK
+                                        </span>
+                                      )}
 
-                                    {followUpBadge && (
-                                      <span className={followUpBadge.className}>
-                                        {followUpBadge.label}
-                                      </span>
-                                    )}
-                                  </div>
-                                </button>
-                              </td>
+                                      {company.email && (
+                                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                                          Email OK
+                                        </span>
+                                      )}
 
-                              <td className="px-5 py-3.5 text-sm text-slate-600">
-                                {company.city || "-"}
-                              </td>
-
-                              <td className="px-5 py-3.5 text-sm text-slate-600">
-                                <div>{company.nafCode || "-"}</div>
-                                <div className="mt-1 line-clamp-2 text-xs text-slate-400">
-                                  {company.nafLabel || ""}
-                                </div>
-                              </td>
-
-                              <td className="px-5 py-3.5">
-                                <div className="space-y-2">
-                                  {company.email ? (
-                                    <div>
-                                      <div className="break-all text-sm font-medium text-slate-800">
-                                        {company.email}
-                                      </div>
-                                      {company.emailSource && (
-                                        <div className="mt-1">
-                                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                                            {company.emailSource === "website"
-                                              ? "Trouvé sur site"
-                                              : company.emailSource}
-                                          </span>
-                                        </div>
+                                      {followUpBadge && (
+                                        <span
+                                          className={followUpBadge.className}
+                                        >
+                                          {followUpBadge.label}
+                                        </span>
                                       )}
                                     </div>
-                                  ) : company.website ? (
-                                    <div className="text-xs text-slate-500">
-                                      Site présent, email non trouvé
-                                    </div>
-                                  ) : (
-                                    <div className="text-xs text-slate-400">
-                                      Aucun contact
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
+                                  </button>
+                                </td>
 
-                              <td className="px-5 py-3.5">
-                                <span
-                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                                    score >= 50
-                                      ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                <td className="px-5 py-3.5 text-sm text-slate-600">
+                                  {company.city || "-"}
+                                </td>
+
+                                <td className="px-5 py-3.5 text-sm text-slate-600">
+                                  <div>{company.nafCode || "-"}</div>
+                                  <div className="mt-1 line-clamp-2 text-xs text-slate-400">
+                                    {company.nafLabel || ""}
+                                  </div>
+                                </td>
+
+                                <td className="px-5 py-3.5">
+                                  <div className="space-y-2">
+                                    {company.email ? (
+                                      <div>
+                                        <div className="break-all text-sm font-medium text-slate-800">
+                                          {company.email}
+                                        </div>
+
+                                        {company.emailSource && (
+                                          <div className="mt-1">
+                                            <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                                              {company.emailSource === "website"
+                                                ? "Trouvé sur site"
+                                                : company.emailSource}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : company.website ? (
+                                      <div className="text-xs text-slate-500">
+                                        Site présent, email non trouvé
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-slate-400">
+                                        Aucun contact
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-5 py-3.5">
+                                  <span
+                                    className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                      score >= 50
+                                        ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                        : score >= 30
+                                          ? "border-amber-200 bg-amber-100 text-amber-700"
+                                          : "border-slate-200 bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {score}
+                                  </span>
+
+                                  <div className="mt-1 text-[11px] text-slate-500">
+                                    {score >= 50
+                                      ? "Très pertinent"
                                       : score >= 30
-                                        ? "border-amber-200 bg-amber-100 text-amber-700"
-                                        : "border-slate-200 bg-slate-100 text-slate-700"
-                                  }`}
-                                >
-                                  {score}
-                                </span>
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                  {score >= 50
-                                    ? "Très pertinent"
-                                    : score >= 30
-                                      ? "Potentiel intéressant"
-                                      : "À qualifier"}
-                                </div>
-                              </td>
+                                        ? "Potentiel intéressant"
+                                        : "À qualifier"}
+                                  </div>
+                                </td>
 
-                              <td className="px-5 py-3">
-                                <div className="space-y-2 rounded-xl bg-slate-50/80 p-2.5">
-                                  <div className="flex flex-wrap gap-1.5">
-                                    <span
-                                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                        COMMERCIAL_STAGE_COLORS[
-                                          company.commercialStage ?? "PROSPECT"
-                                        ] ??
-                                        "border border-slate-200 bg-slate-100 text-slate-700"
-                                      }`}
-                                    >
-                                      {COMMERCIAL_STAGE_LABELS[
-                                        company.commercialStage ?? "PROSPECT"
-                                      ] ??
-                                        company.commercialStage ??
-                                        "Prospect"}
-                                    </span>
-
-                                    {company.lastContactResult && (
+                                <td className="px-5 py-3">
+                                  <div className="space-y-2 rounded-xl bg-slate-50/80 p-2.5">
+                                    <div className="flex flex-wrap gap-1.5">
                                       <span
                                         className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                          ACTIVITY_RESULT_COLORS[
-                                            company.lastContactResult
+                                          COMMERCIAL_STAGE_COLORS[
+                                            company.commercialStage ??
+                                              "PROSPECT"
                                           ] ??
                                           "border border-slate-200 bg-slate-100 text-slate-700"
                                         }`}
                                       >
-                                        {ACTIVITY_RESULT_LABELS[
-                                          company.lastContactResult
-                                        ] ?? company.lastContactResult}
+                                        {COMMERCIAL_STAGE_LABELS[
+                                          company.commercialStage ?? "PROSPECT"
+                                        ] ??
+                                          company.commercialStage ??
+                                          "Prospect"}
                                       </span>
-                                    )}
-                                  </div>
 
-                                  <div className="text-[11px] leading-5 text-slate-500">
-                                    <div>
+                                      {company.lastContactResult && (
+                                        <span
+                                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                            ACTIVITY_RESULT_COLORS[
+                                              company.lastContactResult
+                                            ] ??
+                                            "border border-slate-200 bg-slate-100 text-slate-700"
+                                          }`}
+                                        >
+                                          {ACTIVITY_RESULT_LABELS[
+                                            company.lastContactResult
+                                          ] ?? company.lastContactResult}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="text-[11px] leading-5 text-slate-500">
                                       <span className="font-medium text-slate-700">
                                         Relance :
                                       </span>{" "}
@@ -1620,735 +1779,909 @@ export default function ProspectsPage() {
                                         : "-"}
                                     </div>
                                   </div>
-                                </div>
-                              </td>
+                                </td>
 
-                              <td className="px-5 py-3.5">
-                                <span
-                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                                    STATUS_COLORS[
-                                      company.prospect?.status ?? "NEW"
-                                    ] ??
-                                    "border border-slate-200 bg-slate-100 text-slate-700"
-                                  }`}
-                                >
-                                  {STATUS_LABELS[
-                                    company.prospect?.status ?? "NEW"
-                                  ] ?? company.prospect?.status}
-                                </span>
-                              </td>
-
-                              <td className="px-5 py-3.5">
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleExpanded(company.id)}
-                                    className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                                  >
-                                    {isExpanded ? "Masquer" : "Détails"}
-                                  </button>
-
-                                  {!company.website && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleFindWebsite(company.id)
-                                      }
-                                      disabled={findingWebsiteId === company.id}
-                                      className="rounded-xl border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                <td className="px-5 py-3.5">
+                                  <div className="space-y-1.5">
+                                    <span
+                                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${pipelineStatus.className}`}
                                     >
-                                      {findingWebsiteId === company.id
-                                        ? "Recherche..."
-                                        : "Site"}
-                                    </button>
-                                  )}
+                                      {pipelineStatus.label}
+                                    </span>
 
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleEnrichContact(company.id)
-                                    }
-                                    disabled={enrichingContactId === company.id}
-                                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                  >
-                                    {enrichingContactId === company.id
-                                      ? "Recherche..."
-                                      : "Email"}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditCompany(company)}
-                                    className="rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
-                                  >
-                                    Modifier
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleDeleteCompany(company.id)
-                                    }
-                                    className="rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 transition hover:bg-red-100"
-                                  >
-                                    Supprimer
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {isExpanded && (
-                              <tr className="group border-t border-slate-100 align-top transition-all hover:bg-slate-50/80">
-                                <td colSpan={8} className="px-5 py-3">
-                                  <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-                                    <div className="space-y-4">
-                                      <div className="grid gap-4 md:grid-cols-2">
-                                        <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-                                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                            Informations
-                                          </div>
-
-                                          <div className="mt-3 space-y-2 text-sm text-slate-600">
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Région :
-                                              </span>{" "}
-                                              {company.region || "-"}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Site :
-                                              </span>{" "}
-                                              {company.website ? (
-                                                <a
-                                                  href={company.website}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="text-blue-600 hover:underline"
-                                                >
-                                                  {company.website}
-                                                </a>
-                                              ) : (
-                                                "-"
-                                              )}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Email :
-                                              </span>{" "}
-                                              {company.email || "-"}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Effectif :
-                                              </span>{" "}
-                                              {company.employeeRange || "-"}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Dernier contact :
-                                              </span>{" "}
-                                              {formatDate(
-                                                company.lastContactAt,
-                                              )}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Prochaine relance :
-                                              </span>{" "}
-                                              {formatDate(
-                                                company.nextFollowUpAt,
-                                              )}
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-slate-800">
-                                                Dernier résultat :
-                                              </span>{" "}
-                                              {company.lastContactResult
-                                                ? (ACTIVITY_RESULT_LABELS[
-                                                    company.lastContactResult
-                                                  ] ??
-                                                  company.lastContactResult)
-                                                : "-"}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-                                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                            Qualification
-                                          </div>
-
-                                          <div className="mt-3 space-y-3">
-                                            <div>
-                                              <div className="text-xs font-medium text-slate-500">
-                                                Pourquoi pertinent
-                                              </div>
-                                              <div className="mt-1 text-sm text-slate-700">
-                                                {company.prospect
-                                                  ?.whyRelevant || "-"}
-                                              </div>
-                                            </div>
-
-                                            <div>
-                                              <div className="text-xs font-medium text-slate-500">
-                                                Angle d’approche
-                                              </div>
-                                              <div className="mt-1 text-sm font-medium text-blue-600">
-                                                {company.prospect?.pitchAngle ||
-                                                  "-"}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {candidates.length > 0 && (
-                                        <div className="space-y-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-                                          <div className="flex items-center justify-between gap-3">
-                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                              Sites candidats
-                                            </div>
-                                            <div className="text-xs text-slate-400">
-                                              {candidates.length} résultat(s)
-                                            </div>
-                                          </div>
-
-                                          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                                            {candidates.map(
-                                              (candidate, index) => (
-                                                <div
-                                                  key={candidate.url}
-                                                  className={`flex min-w-0 flex-col rounded-[24px] border p-4 shadow-sm transition hover:shadow-md ${
-                                                    index === 0
-                                                      ? "border-emerald-300 bg-emerald-50/40"
-                                                      : "border-slate-200 bg-white"
-                                                  }`}
-                                                >
-                                                  <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                      <div className="flex flex-wrap items-center gap-2">
-                                                        <a
-                                                          href={candidate.url}
-                                                          target="_blank"
-                                                          rel="noreferrer"
-                                                          className="block break-words text-sm font-semibold leading-5 text-blue-600 hover:underline"
-                                                        >
-                                                          {candidate.hostname}
-                                                        </a>
-
-                                                        {index === 0 && (
-                                                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                                                            Meilleur candidat
-                                                          </span>
-                                                        )}
-                                                      </div>
-
-                                                      <div className="mt-1 break-all text-xs leading-5 text-slate-500">
-                                                        {candidate.url}
-                                                      </div>
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="mt-3 flex flex-wrap gap-2">
-                                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                                                      {candidate.source ===
-                                                      "domain-guess"
-                                                        ? "Domain guess"
-                                                        : "SerpApi"}
-                                                    </span>
-
-                                                    <span
-                                                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                                                        candidate.score >= 24
-                                                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                                          : candidate.score >=
-                                                              18
-                                                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                                                            : "border-slate-200 bg-white text-slate-700"
-                                                      }`}
-                                                    >
-                                                      Score {candidate.score}
-                                                    </span>
-
-                                                    {candidate.searchScore !==
-                                                      undefined && (
-                                                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                                                        Search{" "}
-                                                        {candidate.searchScore}
-                                                      </span>
-                                                    )}
-
-                                                    {candidate.validationScore !==
-                                                      undefined && (
-                                                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                                                        Validation{" "}
-                                                        {
-                                                          candidate.validationScore
-                                                        }
-                                                      </span>
-                                                    )}
-                                                  </div>
-
-                                                  <div className="mt-4 flex-1 space-y-4">
-                                                    {candidate.title && (
-                                                      <div>
-                                                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                                          Titre détecté
-                                                        </div>
-                                                        <div className="line-clamp-3 text-xs font-medium leading-5 text-slate-700">
-                                                          {candidate.title}
-                                                        </div>
-                                                      </div>
-                                                    )}
-
-                                                    {candidate.snippet && (
-                                                      <div>
-                                                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                                          Extrait
-                                                        </div>
-                                                        <div className="line-clamp-4 text-xs leading-5 text-slate-500">
-                                                          {candidate.snippet}
-                                                        </div>
-                                                      </div>
-                                                    )}
-
-                                                    <div className="rounded-xl bg-slate-50 px-3 py-2">
-                                                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                                        Analyse
-                                                      </div>
-                                                      <div className="text-[11px] leading-5 text-slate-500">
-                                                        {candidate.reason}
-                                                      </div>
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="mt-4 border-t border-slate-100 pt-4">
-                                                    <button
-                                                      type="button"
-                                                      onClick={() =>
-                                                        handleUseWebsiteCandidate(
-                                                          company,
-                                                          candidate.url,
-                                                        )
-                                                      }
-                                                      disabled={
-                                                        savingWebsiteId ===
-                                                        company.id
-                                                      }
-                                                      className="w-full rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                                                    >
-                                                      {savingWebsiteId ===
-                                                      company.id
-                                                        ? "Enregistrement..."
-                                                        : "Utiliser ce site"}
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              ),
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      <div className="space-y-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-                                        <div className="flex items-center justify-between gap-3">
-                                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                            Historique commercial
-                                          </div>
-                                          <div className="text-xs text-slate-400">
-                                            {company.activities?.length ?? 0}{" "}
-                                            action(s)
-                                          </div>
-                                        </div>
-
-                                        {!company.activities ||
-                                        company.activities.length === 0 ? (
-                                          <div className="text-sm text-slate-500">
-                                            Aucune action commerciale
-                                            enregistrée pour le moment.
-                                          </div>
-                                        ) : (
-                                          <div className="space-y-3">
-                                            {company.activities.map(
-                                              (activity) => (
-                                                <div
-                                                  key={activity.id}
-                                                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                                                >
-                                                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                                    <div>
-                                                      <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                                                          {ACTIVITY_TYPE_LABELS[
-                                                            activity.type
-                                                          ] ?? activity.type}
-                                                        </span>
-
-                                                        {activity.result && (
-                                                          <span
-                                                            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                                                              ACTIVITY_RESULT_COLORS[
-                                                                activity.result
-                                                              ] ??
-                                                              "border border-blue-200 bg-blue-50 text-blue-700"
-                                                            }`}
-                                                          >
-                                                            {ACTIVITY_RESULT_LABELS[
-                                                              activity.result
-                                                            ] ??
-                                                              activity.result}
-                                                          </span>
-                                                        )}
-                                                      </div>
-
-                                                      <div className="mt-2 text-xs text-slate-500">
-                                                        {formatDate(
-                                                          activity.actionDate,
-                                                        )}
-                                                      </div>
-                                                    </div>
-
-                                                    {activity.nextFollowUpAt && (
-                                                      <div className="text-xs text-amber-700">
-                                                        Relance :{" "}
-                                                        {formatDate(
-                                                          activity.nextFollowUpAt,
-                                                        )}
-                                                      </div>
-                                                    )}
-                                                  </div>
-
-                                                  {activity.notes && (
-                                                    <div className="mt-3 text-sm leading-6 text-slate-600">
-                                                      {activity.notes}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              ),
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.10)] backdrop-blur xl:sticky xl:top-6">
-                                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                        Actions rapides
-                                      </div>
-                                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                                        Agis rapidement sur cette entreprise
-                                        sans quitter la fiche.
-                                      </p>
-
-                                      <div className="mt-4 flex flex-col gap-3">
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                            Actions express
-                                          </div>
-
-                                          <div className="mt-3 grid grid-cols-2 gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleQuickCommercialAction(
-                                                  company.id,
-                                                  "NOT_INTERESTED",
-                                                  "CALL",
-                                                )
-                                              }
-                                              disabled={
-                                                quickActionId ===
-                                                `${company.id}-NOT_INTERESTED`
-                                              }
-                                              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                              {quickActionId ===
-                                              `${company.id}-NOT_INTERESTED`
-                                                ? "..."
-                                                : "Pas intéressé"}
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleQuickCommercialAction(
-                                                  company.id,
-                                                  "TO_CALL_BACK",
-                                                  "FOLLOW_UP",
-                                                )
-                                              }
-                                              disabled={
-                                                quickActionId ===
-                                                `${company.id}-TO_CALL_BACK`
-                                              }
-                                              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                              {quickActionId ===
-                                              `${company.id}-TO_CALL_BACK`
-                                                ? "..."
-                                                : "À relancer"}
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleQuickCommercialAction(
-                                                  company.id,
-                                                  "INTERESTED",
-                                                  "CALL",
-                                                )
-                                              }
-                                              disabled={
-                                                quickActionId ===
-                                                `${company.id}-INTERESTED`
-                                              }
-                                              className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                              {quickActionId ===
-                                              `${company.id}-INTERESTED`
-                                                ? "..."
-                                                : "Intéressé"}
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleQuickCommercialAction(
-                                                  company.id,
-                                                  "APPOINTMENT_BOOKED",
-                                                  "FOLLOW_UP",
-                                                )
-                                              }
-                                              disabled={
-                                                quickActionId ===
-                                                `${company.id}-APPOINTMENT_BOOKED`
-                                              }
-                                              className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                              {quickActionId ===
-                                              `${company.id}-APPOINTMENT_BOOKED`
-                                                ? "..."
-                                                : "RDV"}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleMarkAsClient(company)
-                                              }
-                                              disabled={
-                                                quickActionId ===
-                                                `${company.id}-CLIENT`
-                                              }
-                                              className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                              {quickActionId ===
-                                              `${company.id}-CLIENT`
-                                                ? "..."
-                                                : "Déjà client"}
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                            Ajouter une action
-                                          </div>
-
-                                          <div className="mt-4 space-y-3">
-                                            <select
-                                              value={
-                                                getActivityForm(company.id).type
-                                              }
-                                              onChange={(e) =>
-                                                updateActivityForm(
-                                                  company.id,
-                                                  "type",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className={INPUT_CLASS}
-                                            >
-                                              {Object.entries(
-                                                ACTIVITY_TYPE_LABELS,
-                                              ).map(([value, label]) => (
-                                                <option
-                                                  key={value}
-                                                  value={value}
-                                                >
-                                                  {label}
-                                                </option>
-                                              ))}
-                                            </select>
-
-                                            <select
-                                              value={
-                                                getActivityForm(company.id)
-                                                  .result
-                                              }
-                                              onChange={(e) =>
-                                                updateActivityForm(
-                                                  company.id,
-                                                  "result",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className={INPUT_CLASS}
-                                            >
-                                              {Object.entries(
-                                                ACTIVITY_RESULT_LABELS,
-                                              ).map(([value, label]) => (
-                                                <option
-                                                  key={value}
-                                                  value={value}
-                                                >
-                                                  {label}
-                                                </option>
-                                              ))}
-                                            </select>
-
-                                            <input
-                                              type="datetime-local"
-                                              value={
-                                                getActivityForm(company.id)
-                                                  .actionDate
-                                              }
-                                              onChange={(e) =>
-                                                updateActivityForm(
-                                                  company.id,
-                                                  "actionDate",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className={INPUT_CLASS}
-                                            />
-
-                                            <input
-                                              type="datetime-local"
-                                              value={
-                                                getActivityForm(company.id)
-                                                  .nextFollowUpAt
-                                              }
-                                              onChange={(e) =>
-                                                updateActivityForm(
-                                                  company.id,
-                                                  "nextFollowUpAt",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className={INPUT_CLASS}
-                                              placeholder="Date de relance"
-                                            />
-
-                                            <textarea
-                                              value={
-                                                getActivityForm(company.id)
-                                                  .notes
-                                              }
-                                              onChange={(e) =>
-                                                updateActivityForm(
-                                                  company.id,
-                                                  "notes",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              rows={4}
-                                              placeholder="Notes commerciales, réponse du prospect, contexte de l’appel..."
-                                              className={INPUT_CLASS}
-                                            />
-
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleCreateActivity(company.id)
-                                              }
-                                              disabled={
-                                                savingActivityId === company.id
-                                              }
-                                              className={`w-full ${BUTTON_PRIMARY}`}
-                                            >
-                                              {savingActivityId === company.id
-                                                ? "Enregistrement..."
-                                                : "Enregistrer l’action"}
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        {!company.website && (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              handleFindWebsite(company.id)
-                                            }
-                                            disabled={
-                                              findingWebsiteId === company.id
-                                            }
-                                            className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                          >
-                                            {findingWebsiteId === company.id
-                                              ? "Recherche du site..."
-                                              : "Trouver le site"}
-                                          </button>
-                                        )}
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleEnrichContact(company.id)
-                                          }
-                                          disabled={
-                                            enrichingContactId === company.id
-                                          }
-                                          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                        >
-                                          {enrichingContactId === company.id
-                                            ? "Recherche de l’email..."
-                                            : "Trouver l’email"}
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleEditCompany(company)
-                                          }
-                                          className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                                        >
-                                          Modifier l’entreprise
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleDeleteCompany(company.id)
-                                          }
-                                          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-                                        >
-                                          Supprimer l’entreprise
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleEnrichCompany(company.id)
-                                          }
-                                          className={BUTTON_SECONDARY}
-                                        >
-                                          Enrichir le site
-                                        </button>
-                                      </div>
+                                    <div className="text-[11px] text-slate-400">
+                                      {STATUS_LABELS[
+                                        company.commercialStage === "CLIENT"
+                                          ? "CLIENT"
+                                          : (company.prospect?.status ?? "NEW")
+                                      ] ??
+                                        company.prospect?.status ??
+                                        "Nouveau"}
                                     </div>
                                   </div>
                                 </td>
+
+                                <td className="px-5 py-3.5">
+                                  <div className="flex flex-wrap justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpanded(company.id)}
+                                      className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                      {isExpanded ? "Masquer" : "Détails"}
+                                    </button>
+
+                                    {!company.website && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleFindWebsite(company.id)
+                                        }
+                                        disabled={
+                                          findingWebsiteId === company.id
+                                        }
+                                        className="rounded-xl border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                      >
+                                        {findingWebsiteId === company.id
+                                          ? "Recherche..."
+                                          : "Site"}
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleEnrichContact(company.id)
+                                      }
+                                      disabled={
+                                        enrichingContactId === company.id
+                                      }
+                                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                    >
+                                      {enrichingContactId === company.id
+                                        ? "Recherche..."
+                                        : "Email"}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditCompany(company)}
+                                      className="rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
+                                    >
+                                      Modifier
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteCompany(company.id)
+                                      }
+                                      className="rounded-xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 transition hover:bg-red-100"
+                                    >
+                                      Supprimer
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                              {isExpanded && (
+                                <tr className="group border-t border-slate-100 align-top transition-all hover:bg-slate-50/80">
+                                  <td colSpan={8} className="px-5 py-3">
+                                    <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+                                      <div className="space-y-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                          <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                              Informations
+                                            </div>
+
+                                            <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Région :
+                                                </span>{" "}
+                                                {company.region || "-"}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Site :
+                                                </span>{" "}
+                                                {company.website ? (
+                                                  <a
+                                                    href={company.website}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-blue-600 hover:underline"
+                                                  >
+                                                    {company.website}
+                                                  </a>
+                                                ) : (
+                                                  "-"
+                                                )}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Email :
+                                                </span>{" "}
+                                                {company.email || "-"}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Effectif :
+                                                </span>{" "}
+                                                {company.employeeRange || "-"}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Dernier contact :
+                                                </span>{" "}
+                                                {formatDate(
+                                                  company.lastContactAt,
+                                                )}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Prochaine relance :
+                                                </span>{" "}
+                                                {formatDate(
+                                                  company.nextFollowUpAt,
+                                                )}
+                                              </div>
+                                              <div>
+                                                <span className="font-medium text-slate-800">
+                                                  Dernier résultat :
+                                                </span>{" "}
+                                                {company.lastContactResult
+                                                  ? (ACTIVITY_RESULT_LABELS[
+                                                      company.lastContactResult
+                                                    ] ??
+                                                    company.lastContactResult)
+                                                  : "-"}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                              Qualification
+                                            </div>
+
+                                            <div className="mt-3 space-y-3">
+                                              <div>
+                                                <div className="text-xs font-medium text-slate-500">
+                                                  Pourquoi pertinent
+                                                </div>
+                                                <div className="mt-1 text-sm text-slate-700">
+                                                  {company.prospect
+                                                    ?.whyRelevant || "-"}
+                                                </div>
+                                              </div>
+
+                                              <div>
+                                                <div className="text-xs font-medium text-slate-500">
+                                                  Angle d’approche
+                                                </div>
+                                                <div className="mt-1 text-sm font-medium text-blue-600">
+                                                  {company.prospect
+                                                    ?.pitchAngle || "-"}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {candidates.length > 0 && (
+                                          <div className="space-y-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                                Sites candidats
+                                              </div>
+                                              <div className="text-xs text-slate-400">
+                                                {candidates.length} résultat(s)
+                                              </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                                              {candidates.map(
+                                                (candidate, index) => (
+                                                  <div
+                                                    key={candidate.url}
+                                                    className={`flex min-w-0 flex-col rounded-[24px] border p-4 shadow-sm transition hover:shadow-md ${
+                                                      index === 0
+                                                        ? "border-emerald-300 bg-emerald-50/40"
+                                                        : "border-slate-200 bg-white"
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                      <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          <a
+                                                            href={candidate.url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="block break-words text-sm font-semibold leading-5 text-blue-600 hover:underline"
+                                                          >
+                                                            {candidate.hostname}
+                                                          </a>
+
+                                                          {index === 0 && (
+                                                            <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                                                              Meilleur candidat
+                                                            </span>
+                                                          )}
+                                                        </div>
+
+                                                        <div className="mt-1 break-all text-xs leading-5 text-slate-500">
+                                                          {candidate.url}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                                                        {candidate.source ===
+                                                        "domain-guess"
+                                                          ? "Domain guess"
+                                                          : "SerpApi"}
+                                                      </span>
+
+                                                      <span
+                                                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                                          candidate.score >= 24
+                                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                            : candidate.score >=
+                                                                18
+                                                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                              : "border-slate-200 bg-white text-slate-700"
+                                                        }`}
+                                                      >
+                                                        Score {candidate.score}
+                                                      </span>
+
+                                                      {candidate.searchScore !==
+                                                        undefined && (
+                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                                                          Search{" "}
+                                                          {
+                                                            candidate.searchScore
+                                                          }
+                                                        </span>
+                                                      )}
+
+                                                      {candidate.validationScore !==
+                                                        undefined && (
+                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                                                          Validation{" "}
+                                                          {
+                                                            candidate.validationScore
+                                                          }
+                                                        </span>
+                                                      )}
+                                                    </div>
+
+                                                    <div className="mt-4 flex-1 space-y-4">
+                                                      {candidate.title && (
+                                                        <div>
+                                                          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                                            Titre détecté
+                                                          </div>
+                                                          <div className="line-clamp-3 text-xs font-medium leading-5 text-slate-700">
+                                                            {candidate.title}
+                                                          </div>
+                                                        </div>
+                                                      )}
+
+                                                      {candidate.snippet && (
+                                                        <div>
+                                                          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                                            Extrait
+                                                          </div>
+                                                          <div className="line-clamp-4 text-xs leading-5 text-slate-500">
+                                                            {candidate.snippet}
+                                                          </div>
+                                                        </div>
+                                                      )}
+
+                                                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                                          Analyse
+                                                        </div>
+                                                        <div className="text-[11px] leading-5 text-slate-500">
+                                                          {candidate.reason}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="mt-4 border-t border-slate-100 pt-4">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                          handleUseWebsiteCandidate(
+                                                            company,
+                                                            candidate.url,
+                                                          )
+                                                        }
+                                                        disabled={
+                                                          savingWebsiteId ===
+                                                          company.id
+                                                        }
+                                                        className="w-full rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                                                      >
+                                                        {savingWebsiteId ===
+                                                        company.id
+                                                          ? "Enregistrement..."
+                                                          : "Utiliser ce site"}
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                ),
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="space-y-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                              Historique commercial
+                                            </div>
+                                            <div className="text-xs text-slate-400">
+                                              {company.activities?.length ?? 0}{" "}
+                                              action(s)
+                                            </div>
+                                          </div>
+
+                                          {!company.activities ||
+                                          company.activities.length === 0 ? (
+                                            <div className="text-sm text-slate-500">
+                                              Aucune action commerciale
+                                              enregistrée pour le moment.
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-3">
+                                              {company.activities.map(
+                                                (activity) => (
+                                                  <div
+                                                    key={activity.id}
+                                                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                                  >
+                                                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                                      <div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                                                            {ACTIVITY_TYPE_LABELS[
+                                                              activity.type
+                                                            ] ?? activity.type}
+                                                          </span>
+
+                                                          {activity.result && (
+                                                            <span
+                                                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                                                ACTIVITY_RESULT_COLORS[
+                                                                  activity
+                                                                    .result
+                                                                ] ??
+                                                                "border border-blue-200 bg-blue-50 text-blue-700"
+                                                              }`}
+                                                            >
+                                                              {ACTIVITY_RESULT_LABELS[
+                                                                activity.result
+                                                              ] ??
+                                                                activity.result}
+                                                            </span>
+                                                          )}
+                                                        </div>
+
+                                                        <div className="mt-2 text-xs text-slate-500">
+                                                          {formatDate(
+                                                            activity.actionDate,
+                                                          )}
+                                                        </div>
+                                                      </div>
+
+                                                      {activity.nextFollowUpAt && (
+                                                        <div className="text-xs text-amber-700">
+                                                          Relance :{" "}
+                                                          {formatDate(
+                                                            activity.nextFollowUpAt,
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
+
+                                                    {activity.notes && (
+                                                      <div className="mt-3 text-sm leading-6 text-slate-600">
+                                                        {activity.notes}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ),
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.10)] backdrop-blur xl:sticky xl:top-6">
+                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                          Actions rapides
+                                        </div>
+                                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                                          Agis rapidement sur cette entreprise
+                                          sans quitter la fiche.
+                                        </p>
+
+                                        <div className="mt-4 flex flex-col gap-3">
+                                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                              Actions express
+                                            </div>
+
+                                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleQuickCommercialAction(
+                                                    company.id,
+                                                    "NOT_INTERESTED",
+                                                    "CALL",
+                                                  )
+                                                }
+                                                disabled={
+                                                  quickActionId ===
+                                                  `${company.id}-NOT_INTERESTED`
+                                                }
+                                                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                              >
+                                                {quickActionId ===
+                                                `${company.id}-NOT_INTERESTED`
+                                                  ? "..."
+                                                  : "Pas intéressé"}
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleQuickCommercialAction(
+                                                    company.id,
+                                                    "TO_CALL_BACK",
+                                                    "FOLLOW_UP",
+                                                  )
+                                                }
+                                                disabled={
+                                                  quickActionId ===
+                                                  `${company.id}-TO_CALL_BACK`
+                                                }
+                                                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                              >
+                                                {quickActionId ===
+                                                `${company.id}-TO_CALL_BACK`
+                                                  ? "..."
+                                                  : "À relancer"}
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleQuickCommercialAction(
+                                                    company.id,
+                                                    "INTERESTED",
+                                                    "CALL",
+                                                  )
+                                                }
+                                                disabled={
+                                                  quickActionId ===
+                                                  `${company.id}-INTERESTED`
+                                                }
+                                                className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                              >
+                                                {quickActionId ===
+                                                `${company.id}-INTERESTED`
+                                                  ? "..."
+                                                  : "Intéressé"}
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleQuickCommercialAction(
+                                                    company.id,
+                                                    "APPOINTMENT_BOOKED",
+                                                    "FOLLOW_UP",
+                                                  )
+                                                }
+                                                disabled={
+                                                  quickActionId ===
+                                                  `${company.id}-APPOINTMENT_BOOKED`
+                                                }
+                                                className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                              >
+                                                {quickActionId ===
+                                                `${company.id}-APPOINTMENT_BOOKED`
+                                                  ? "..."
+                                                  : "RDV"}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleMarkAsClient(company)
+                                                }
+                                                disabled={
+                                                  quickActionId ===
+                                                  `${company.id}-CLIENT`
+                                                }
+                                                className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-70"
+                                              >
+                                                {quickActionId ===
+                                                `${company.id}-CLIENT`
+                                                  ? "..."
+                                                  : "Déjà client"}
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                              Ajouter une action
+                                            </div>
+
+                                            <div className="mt-4 space-y-3">
+                                              <select
+                                                value={
+                                                  getActivityForm(company.id)
+                                                    .type
+                                                }
+                                                onChange={(e) =>
+                                                  updateActivityForm(
+                                                    company.id,
+                                                    "type",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className={INPUT_CLASS}
+                                              >
+                                                {Object.entries(
+                                                  ACTIVITY_TYPE_LABELS,
+                                                ).map(([value, label]) => (
+                                                  <option
+                                                    key={value}
+                                                    value={value}
+                                                  >
+                                                    {label}
+                                                  </option>
+                                                ))}
+                                              </select>
+
+                                              <select
+                                                value={
+                                                  getActivityForm(company.id)
+                                                    .result
+                                                }
+                                                onChange={(e) =>
+                                                  updateActivityForm(
+                                                    company.id,
+                                                    "result",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className={INPUT_CLASS}
+                                              >
+                                                {Object.entries(
+                                                  ACTIVITY_RESULT_LABELS,
+                                                ).map(([value, label]) => (
+                                                  <option
+                                                    key={value}
+                                                    value={value}
+                                                  >
+                                                    {label}
+                                                  </option>
+                                                ))}
+                                              </select>
+
+                                              <input
+                                                type="datetime-local"
+                                                value={
+                                                  getActivityForm(company.id)
+                                                    .actionDate
+                                                }
+                                                onChange={(e) =>
+                                                  updateActivityForm(
+                                                    company.id,
+                                                    "actionDate",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className={INPUT_CLASS}
+                                              />
+
+                                              <input
+                                                type="datetime-local"
+                                                value={
+                                                  getActivityForm(company.id)
+                                                    .nextFollowUpAt
+                                                }
+                                                onChange={(e) =>
+                                                  updateActivityForm(
+                                                    company.id,
+                                                    "nextFollowUpAt",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className={INPUT_CLASS}
+                                                placeholder="Date de relance"
+                                              />
+
+                                              <textarea
+                                                value={
+                                                  getActivityForm(company.id)
+                                                    .notes
+                                                }
+                                                onChange={(e) =>
+                                                  updateActivityForm(
+                                                    company.id,
+                                                    "notes",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                rows={4}
+                                                placeholder="Notes commerciales, réponse du prospect, contexte de l’appel..."
+                                                className={INPUT_CLASS}
+                                              />
+
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleCreateActivity(
+                                                    company.id,
+                                                  )
+                                                }
+                                                disabled={
+                                                  savingActivityId ===
+                                                  company.id
+                                                }
+                                                className={`w-full ${BUTTON_PRIMARY}`}
+                                              >
+                                                {savingActivityId === company.id
+                                                  ? "Enregistrement..."
+                                                  : "Enregistrer l’action"}
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {!company.website && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleFindWebsite(company.id)
+                                              }
+                                              disabled={
+                                                findingWebsiteId === company.id
+                                              }
+                                              className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                            >
+                                              {findingWebsiteId === company.id
+                                                ? "Recherche du site..."
+                                                : "Trouver le site"}
+                                            </button>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleEnrichContact(company.id)
+                                            }
+                                            disabled={
+                                              enrichingContactId === company.id
+                                            }
+                                            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                          >
+                                            {enrichingContactId === company.id
+                                              ? "Recherche de l’email..."
+                                              : "Trouver l’email"}
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleEditCompany(company)
+                                            }
+                                            className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                                          >
+                                            Modifier l’entreprise
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleDeleteCompany(company.id)
+                                            }
+                                            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                                          >
+                                            Supprimer l’entreprise
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleEnrichCompany(company.id)
+                                            }
+                                            className={BUTTON_SECONDARY}
+                                          >
+                                            Enrichir le site
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-4">
+                {kanbanGroups.map((column) => (
+                  <div
+                    key={column.key}
+                    className={`min-h-[520px] rounded-[28px] border p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${column.className}`}
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">
+                          {column.label}
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-500">
+                          {column.description}
+                        </div>
+                      </div>
+
+                      <span className="rounded-full border border-white/70 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm">
+                        {column.companies.length}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {column.companies.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-4 text-center text-xs text-slate-400">
+                          Aucun prospect
+                        </div>
+                      ) : (
+                        column.companies.map((company) => {
+                          const score = company.prospect?.score ?? 0;
+                          const pipelineStatus = getPipelineStatus(company);
+                          const followUpBadge = getFollowUpBadge(company);
+
+                          return (
+                            <div
+                              key={company.id}
+                              className="rounded-2xl border border-white/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-bold text-slate-950">
+                                    {company.name}
+                                  </div>
+
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {company.city || "-"}
+                                    {company.region
+                                      ? ` • ${company.region}`
+                                      : ""}
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                    score >= 50
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                      : score >= 30
+                                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                                        : "border-slate-200 bg-slate-50 text-slate-700"
+                                  }`}
+                                >
+                                  {score}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${pipelineStatus.className}`}
+                                >
+                                  {pipelineStatus.label}
+                                </span>
+
+                                {company.lastContactResult && (
+                                  <span
+                                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                      ACTIVITY_RESULT_COLORS[
+                                        company.lastContactResult
+                                      ] ??
+                                      "border border-slate-200 bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {ACTIVITY_RESULT_LABELS[
+                                      company.lastContactResult
+                                    ] ?? company.lastContactResult}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mt-3 space-y-1 text-xs text-slate-500">
+                                <div>
+                                  <span className="font-semibold text-slate-700">
+                                    Relance :
+                                  </span>{" "}
+                                  {company.nextFollowUpAt
+                                    ? new Date(
+                                        company.nextFollowUpAt,
+                                      ).toLocaleDateString("fr-FR")
+                                    : "-"}
+                                </div>
+
+                                {followUpBadge && (
+                                  <div>
+                                    <span className={followUpBadge.className}>
+                                      {followUpBadge.label}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpandedCompanyId(company.id);
+                                    setViewMode("table");
+                                  }}
+                                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Ouvrir
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleQuickCommercialAction(
+                                      company.id,
+                                      "TO_CALL_BACK",
+                                      "FOLLOW_UP",
+                                    )
+                                  }
+                                  disabled={
+                                    quickActionId ===
+                                    `${company.id}-TO_CALL_BACK`
+                                  }
+                                  className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-70"
+                                >
+                                  Relancer
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkAsClient(company)}
+                                  disabled={
+                                    quickActionId === `${company.id}-CLIENT`
+                                  }
+                                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-70"
+                                >
+                                  Client
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
