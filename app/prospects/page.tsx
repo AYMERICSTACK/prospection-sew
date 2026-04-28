@@ -181,7 +181,8 @@ function isClosedCompany(company: Company) {
     ? CLOSED_RESULTS.includes(lastResult)
     : false;
   const isClosedByStatus = status === "LOST" || status === "ARCHIVED";
-  const isClosedByStage = commercialStage === "INACTIVE";
+  const isClosedByStage =
+    commercialStage === "INACTIVE" || commercialStage === "CLIENT";
 
   return isClosedByResult || isClosedByStatus || isClosedByStage;
 }
@@ -791,6 +792,61 @@ export default function ProspectsPage() {
     }
   }
 
+  async function handleMarkAsClient(company: Company) {
+    try {
+      setMessage(null);
+      setQuickActionId(`${company.id}-CLIENT`);
+
+      const res = await fetch(`/api/companies/${company.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: company.name ?? "",
+          tradeName: company.tradeName ?? "",
+          businessKeywords: company.businessKeywords ?? "",
+          siren: company.siren ?? "",
+          nafCode: company.nafCode ?? "",
+          nafLabel: company.nafLabel ?? "",
+          city: company.city ?? "",
+          region: company.region ?? "",
+          website: company.website ?? "",
+          email: company.email ?? "",
+          emailStatus: company.emailStatus ?? "",
+          emailSource: company.emailSource ?? "",
+          employeeRange: company.employeeRange ?? "",
+          commercialStage: "CLIENT",
+        }),
+      });
+
+      const data = await readJsonSafely(res);
+
+      if (!res.ok || !data?.success) {
+        setMessage({
+          type: "error",
+          text: data?.message || "Erreur lors du passage en client.",
+        });
+        return;
+      }
+
+      setMessage({
+        type: "success",
+        text: "Entreprise passée en client ✅",
+      });
+
+      await loadCompanies();
+    } catch (error) {
+      console.error("Erreur technique handleMarkAsClient:", error);
+      setMessage({
+        type: "error",
+        text: "Erreur technique lors du passage en client.",
+      });
+    } finally {
+      setQuickActionId(null);
+    }
+  }
+
   async function handleDeleteCompany(companyId: string) {
     const confirmed = window.confirm(
       "Tu veux vraiment supprimer cette entreprise de la base prospects ?",
@@ -919,7 +975,8 @@ export default function ProspectsPage() {
       ? CLOSED_RESULTS.includes(lastResult)
       : false;
     const isClosedByStatus = status === "LOST" || status === "ARCHIVED";
-    const isClosedByStage = commercialStage === "INACTIVE";
+    const isClosedByStage =
+      commercialStage === "INACTIVE" || commercialStage === "CLIENT";
 
     const isClosed = isClosedByResult || isClosedByStatus || isClosedByStage;
 
@@ -2073,6 +2130,22 @@ export default function ProspectsPage() {
                                               `${company.id}-APPOINTMENT_BOOKED`
                                                 ? "..."
                                                 : "RDV"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleMarkAsClient(company)
+                                              }
+                                              disabled={
+                                                quickActionId ===
+                                                `${company.id}-CLIENT`
+                                              }
+                                              className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-70"
+                                            >
+                                              {quickActionId ===
+                                              `${company.id}-CLIENT`
+                                                ? "..."
+                                                : "Déjà client"}
                                             </button>
                                           </div>
                                         </div>
