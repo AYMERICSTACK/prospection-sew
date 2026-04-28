@@ -1,0 +1,113 @@
+generator client {
+  provider   = "prisma-client"
+  output     = "../generated/prisma"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProspectStatus {
+  NEW
+  TO_REVIEW
+  QUALIFIED
+  CONTACTED
+  FOLLOW_UP
+  WON
+  LOST
+  ARCHIVED
+}
+
+enum CommercialStage {
+  PROSPECT
+  TARGET
+  CLIENT
+  INACTIVE
+}
+
+enum CompanyActivityType {
+  CALL
+  EMAIL
+  VISIT
+  FLYER
+  FOLLOW_UP
+  NOTE
+}
+
+enum CompanyActivityResult {
+  NO_ANSWER
+  NOT_INTERESTED
+  TO_CALL_BACK
+  INTERESTED
+  APPOINTMENT_TO_SCHEDULE
+  APPOINTMENT_BOOKED
+  QUOTE_REQUESTED
+  ALREADY_EQUIPPED
+  WRONG_CONTACT
+  INFORMATION_SENT
+  OTHER
+}
+
+model Company {
+  id               String          @id @default(cuid())
+  name             String
+  tradeName        String?
+  businessKeywords String?
+  siren            String?         @unique
+  siret            String?         @unique
+  nafCode          String?
+  nafLabel         String?
+  city             String?
+  postalCode       String?
+  address          String?
+  region           String?
+  website          String?
+  email            String?
+  emailStatus      String?
+  emailSource      String?
+  employeeRange    String?
+  source           String?
+  commercialStage  CommercialStage @default(PROSPECT)
+  lastContactAt    DateTime?
+  nextFollowUpAt   DateTime?
+  lastContactResult String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  prospect   Prospect?
+  activities CompanyActivity[]
+}
+
+model Prospect {
+  id           String         @id @default(cuid())
+  companyId    String         @unique
+  status       ProspectStatus @default(NEW)
+  score        Int            @default(0)
+  whyRelevant  String?
+  pitchAngle   String?
+  notes        String?
+  websiteScan  String?
+  websiteScore Int            @default(0)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyActivity {
+  id             String                @id @default(cuid())
+  companyId      String
+  type           CompanyActivityType
+  result         CompanyActivityResult?
+  notes          String?
+  actionDate     DateTime              @default(now())
+  nextFollowUpAt DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, actionDate])
+}
