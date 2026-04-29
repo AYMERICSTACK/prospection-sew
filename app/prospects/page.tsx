@@ -831,7 +831,7 @@ export default function ProspectsPage() {
           loadCompanies={loadCompanies}
           handleScoreAll={handleScoreAll}
         />
-        <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)]">
           <div className="space-y-6">
             <ImportCompaniesForm
               importForm={importForm}

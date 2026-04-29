@@ -97,7 +97,7 @@ export default function ProspectsFilters({
           </div>
         </div>
 
-        <div className="grid w-full gap-3 md:grid-cols-2 xl:max-w-5xl xl:grid-cols-5">
+        <div className="grid w-full gap-3 md:grid-cols-2 xl:max-w-4xl xl:grid-cols-5">
           <input
             type="text"
             value={filter}
