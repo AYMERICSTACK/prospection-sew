@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Company = {
@@ -63,9 +64,11 @@ export default function ClientsPage() {
     async function loadCompanies() {
       try {
         setLoading(true);
+
         const res = await fetch("/api/companies", {
           cache: "no-store",
         });
+
         const data: CompaniesResponse = await res.json();
         setCompanies(data.data ?? []);
       } finally {
@@ -95,12 +98,39 @@ export default function ClientsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/prospects"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                ← Retour prospects
+              </Link>
+
+              <Link
+                href="/"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Accueil
+              </Link>
+            </div>
+
+            <Link
+              href="/prospects"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90"
+            >
+              Ouvrir la prospection
+            </Link>
+          </div>
+
           <p className="mb-2 text-sm font-medium text-blue-600">
             Suivi commercial
           </p>
+
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             Comptes cibles & clients
           </h1>
+
           <p className="mt-2 text-sm text-slate-600">
             Base dédiée aux entreprises à garder, suivre et travailler
             commercialement.
@@ -136,6 +166,7 @@ export default function ClientsPage() {
                       <div className="text-base font-semibold text-slate-900">
                         {company.name}
                       </div>
+
                       <div className="mt-1 text-sm text-slate-500">
                         {company.city || "-"}
                         {company.region ? ` • ${company.region}` : ""}
@@ -160,6 +191,7 @@ export default function ClientsPage() {
                       </span>{" "}
                       {company.email || "-"}
                     </div>
+
                     <div>
                       <span className="font-medium text-slate-800">Site :</span>{" "}
                       {company.website ? (
@@ -175,6 +207,7 @@ export default function ClientsPage() {
                         "-"
                       )}
                     </div>
+
                     <div>
                       <span className="font-medium text-slate-800">
                         Score :

@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { STATUS_LABELS, STATUS_COLORS } from "@/lib/prospect-status";
+import { STATUS_LABELS } from "@/lib/prospect-status";
+import Link from "next/link";
 
 type Company = {
   id: string;
@@ -184,8 +185,7 @@ function isClosedCompany(company: Company) {
     ? CLOSED_RESULTS.includes(lastResult)
     : false;
   const isClosedByStatus = status === "LOST" || status === "ARCHIVED";
-  const isClosedByStage =
-    commercialStage === "INACTIVE" || commercialStage === "CLIENT";
+  const isClosedByStage = commercialStage === "INACTIVE";
 
   return isClosedByResult || isClosedByStatus || isClosedByStage;
 }
@@ -1039,20 +1039,30 @@ export default function ProspectsPage() {
 
   const todayFollowUpsCount = companies.filter(
     (company) =>
-      !isClosedCompany(company) && getFollowUpBucket(company) === "today",
+      !isClosedCompany(company) &&
+      company.commercialStage !== "CLIENT" &&
+      getFollowUpBucket(company) === "today",
   ).length;
 
   const overdueFollowUpsCount = companies.filter(
     (company) =>
-      !isClosedCompany(company) && getFollowUpBucket(company) === "overdue",
+      !isClosedCompany(company) &&
+      company.commercialStage !== "CLIENT" &&
+      getFollowUpBucket(company) === "overdue",
   ).length;
 
   const activeCompaniesCount = companies.filter(
-    (company) => !isClosedCompany(company),
+    (company) =>
+      !isClosedCompany(company) && company.commercialStage !== "CLIENT",
   ).length;
 
-  const closedCompaniesCount = companies.filter((company) =>
-    isClosedCompany(company),
+  const clientsCount = companies.filter(
+    (company) => company.commercialStage === "CLIENT",
+  ).length;
+
+  const closedCompaniesCount = companies.filter(
+    (company) =>
+      isClosedCompany(company) && company.commercialStage !== "CLIENT",
   ).length;
 
   const filteredCompanies = companies.filter((company) => {
@@ -1092,12 +1102,15 @@ export default function ProspectsPage() {
       ? CLOSED_RESULTS.includes(lastResult)
       : false;
     const isClosedByStatus = status === "LOST" || status === "ARCHIVED";
-    const isClosedByStage =
-      commercialStage === "INACTIVE" || commercialStage === "CLIENT";
+    const isClosedByStage = commercialStage === "INACTIVE";
 
     const isClosed = isClosedByResult || isClosedByStatus || isClosedByStage;
 
     const followUpBucket = getFollowUpBucket(company);
+
+    const isClient = commercialStage === "CLIENT";
+
+    const matchesClientFilter = !isClient;
 
     const matchesClosedFilter = showClosedCompanies ? true : !isClosed;
 
@@ -1115,6 +1128,7 @@ export default function ProspectsPage() {
       matchesScore &&
       matchesStatus &&
       matchesDepartment &&
+      matchesClientFilter &&
       matchesClosedFilter &&
       matchesQuickFilter
     );
@@ -1165,7 +1179,7 @@ export default function ProspectsPage() {
                     <span className="font-semibold text-slate-800">
                       {activeCompaniesCount}
                     </span>{" "}
-                    actives
+                    prospects à traiter
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2">
                     <span className="font-semibold text-slate-800">
@@ -1176,6 +1190,14 @@ export default function ProspectsPage() {
                 </div>
               </div>
 
+              <Link
+                href="/clients"
+                className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-md"
+              >
+                <span className="text-base font-bold">{clientsCount}</span>
+                <span>clients</span>
+              </Link>
+
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -1184,6 +1206,10 @@ export default function ProspectsPage() {
                 >
                   Rafraîchir
                 </button>
+
+                <Link href="/clients" className={BUTTON_SECONDARY}>
+                  Clients
+                </Link>
 
                 <button
                   type="button"
@@ -1387,7 +1413,7 @@ export default function ProspectsPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <button
                 type="button"
                 onClick={() => setQuickFilter("today")}
@@ -1433,14 +1459,29 @@ export default function ProspectsPage() {
                     : "border-slate-200/80 bg-white"
                 }`}
               >
-                <div className={LABEL_MUTED}>Prospects actifs</div>
+                <div className={LABEL_MUTED}>Prospects à traiter</div>
                 <div className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
                   {activeCompaniesCount}
                 </div>
                 <div className="mt-2 text-sm leading-6 text-slate-500">
-                  Encore exploitables commercialement
+                  Hors clients et hors clôturés
                 </div>
               </button>
+
+              <Link
+                href="/clients"
+                className="group relative overflow-hidden rounded-[28px] border border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)]"
+              >
+                <div className={LABEL_MUTED}>Clients</div>
+
+                <div className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
+                  {clientsCount}
+                </div>
+
+                <div className="mt-2 text-sm leading-6 text-slate-500">
+                  Déjà clients / portefeuille
+                </div>
+              </Link>
 
               <button
                 type="button"
@@ -1454,7 +1495,7 @@ export default function ProspectsPage() {
                     : "border-slate-200/80 bg-white"
                 }`}
               >
-                <div className={LABEL_MUTED}>Clôturés</div>
+                <div className={LABEL_MUTED}>Perdus / inactifs</div>
                 <div className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
                   {closedCompaniesCount}
                 </div>
