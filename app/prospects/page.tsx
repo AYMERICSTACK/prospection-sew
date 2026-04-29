@@ -821,7 +821,7 @@ export default function ProspectsPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.05),_transparent_20%),linear-gradient(to_bottom,_#f8fafc,_#f1f5f9)] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-[1600px] space-y-6">
         <ProspectsHeader
           companiesCount={companies.length}
           activeCompaniesCount={activeCompaniesCount}
@@ -850,7 +850,7 @@ export default function ProspectsPage() {
             />
           </div>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <ProspectsKpiCards
               quickFilter={quickFilter}
               setQuickFilter={setQuickFilter}
