@@ -24,3 +24,41 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.receipt-page {
+  width: 210mm;
+  min-height: 297mm;
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-page,
+  .receipt-page * {
+    visibility: visible;
+  }
+
+  .receipt-page {
+    position: absolute;
+    inset: 0;
+    width: 210mm;
+    min-height: 297mm;
+    box-shadow: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

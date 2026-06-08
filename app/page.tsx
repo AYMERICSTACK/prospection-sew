@@ -50,8 +50,18 @@ export default function Home() {
             </span>
           </Link>
 
+          <Link
+            href="/accuses-reception"
+            className="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+          >
+            Générer un accusé de réception
+            <span className="transition-transform group-hover:translate-x-1">
+              →
+            </span>
+          </Link>
+
           <p className="text-xs text-slate-400">
-            Accès rapide à la base de prospection
+            Accès rapide aux outils commerciaux ADEI
           </p>
         </div>
 

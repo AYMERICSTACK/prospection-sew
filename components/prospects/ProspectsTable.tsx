@@ -91,7 +91,7 @@ export default function ProspectsTable({
   handleMarkAsClient,
 }: Props) {
   return (
-    <div className="overflow-hidden rounded-[30px] border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
+    <div className="min-w-0 overflow-hidden rounded-[30px] border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
       {loading ? (
         <div className="px-6 py-10 text-sm text-slate-500">Chargement...</div>
       ) : companies.length === 0 ? (
@@ -99,8 +99,8 @@ export default function ProspectsTable({
           Aucun prospect trouvé.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="bg-slate-50/90 text-slate-500">
               <tr>
                 <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]">
