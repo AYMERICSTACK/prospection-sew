@@ -102,6 +102,10 @@ export default function ProspectsHeader({
               Clients
             </Link>
 
+            <Link href="/accuses-reception" className={BUTTON_SECONDARY}>
+              Accusés de réception
+            </Link>
+
             <button
               type="button"
               onClick={handleScoreAll}
